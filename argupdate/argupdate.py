@@ -1,7 +1,16 @@
 import abc
 import inspect
-from collections import OrderedDict
-from typing import Any, Sequence, Mapping, Tuple, Union, Callable, MutableMapping
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 
 class ValueUpdater(abc.ABC):
@@ -9,6 +18,7 @@ class ValueUpdater(abc.ABC):
 
     For usage with :func:`update_parameter_value`.
     """
+
     @abc.abstractmethod
     def __call__(self, original_value: Any, signature: inspect.Signature,
                  orig_args: Sequence[Any], orig_kwargs: Mapping[str, Any]) -> Any:
@@ -25,9 +35,27 @@ class ValueUpdater(abc.ABC):
 ArgKwarg = Tuple[Sequence[Any], Mapping[str, Any]]
 UpdateValue = Union[ValueUpdater, Any]
 
+AnyCallable = Callable[..., Any]
+
+
+def iter_args(func: AnyCallable,
+              args: Sequence[Any],
+              kwargs: Mapping[str, Any],
+              use_default_values_if_needed: Optional[bool] = True,
+              signature: Optional[inspect.Signature] = None
+              ) -> Iterable[Tuple[str, Any]]:
+    sig = signature or inspect.signature(func)
+    bound_args: inspect.BoundArguments = sig.bind(*args, **kwargs)
+    if use_default_values_if_needed:
+        bound_args.apply_defaults()
+
+    bound_args.arguments: MutableMapping[str, Any]
+    for name, value in bound_args.arguments.items():
+        yield name, value
+
 
 def update_parameter_value(func: Callable[..., Any],
-                           updated_values: MutableMapping[str, UpdateValue],
+                           updated_values: Mapping[str, UpdateValue],
                            orig_args: Sequence[Any] = None,
                            orig_kwargs: Mapping[str, Any] = None) -> ArgKwarg:
     """Updates the values in an arg list and kwarg dict to new values.
@@ -43,77 +71,51 @@ def update_parameter_value(func: Callable[..., Any],
         you're only passing args to `func`.
     :return: Returns the updated args and kwargs.
     """
-    if not orig_args and not orig_kwargs:
-        # nothing to update, so short-circuit here
-        return orig_args, orig_kwargs
 
-    signature = inspect.signature(func)
-    parameters = signature.parameters
+    sig = inspect.signature(func)
 
-    if not parameters:
-        # function doesn't take any parameters, so this is going to be an error.
-        # Return the data and let python raise when the args get passed to the function.
-        return orig_args, orig_kwargs
-
-    # separate the positional args from the default-having args
-    positional_parameters = OrderedDict()
-    default_parameters = OrderedDict()
-    for name, param in parameters.items():
-        if param.default is inspect.Parameter.empty:
-            positional_parameters[name] = param
+    def updater(key: str, current_value: Any) -> Any:
+        if key not in updated_values:
+            return current_value
+        elif ValueUpdater.is_value_updater(updated_values[key]):
+            value_updater = updated_values[key]()
+            return value_updater(current_value, sig, orig_args, orig_kwargs)
         else:
-            default_parameters[name] = param
+            return updated_values[key]
 
-    if len(orig_args) != len(positional_parameters):
-        # wrong number of positional arguments so this is going to be an error.
-        # Return the arguments and let python raise when wrong number of args gets passed to the
-        # function.
-        return orig_args, orig_kwargs
+    if orig_args is None:
+        orig_args = []
+    if orig_kwargs is None:
+        orig_kwargs = {}
 
-    # Updating positional args if necessary.
+    args = list(orig_args)
+    kwargs = dict(orig_kwargs)
 
-
-    updated_args = []
-    if orig_args:
-        args_count = 0
-        # The parameters are an ordered dict.  The order is determined by the order the arguments
-        # are specified in the original function signature.  Since function signatures must have
-        # args before kwargs, we can just loop through the parameters until we've reached the
-        # first parameter with a default value...aka a kwarg.
-        for index, key in enumerate(positional_parameters):
-            if key in updated_values:
-                update = updated_values.pop(key)
-                # This parameter is in our updated_values, so we need to update it.
-                if ValueUpdater.is_value_updater(update):
-                    # this is a value-updating function so run it
-                    value_creator = update()
-                    value = value_creator(orig_args[index], signature, orig_args, orig_kwargs)
-                else:
-                    # just a plain value, so update it
-                    value = update
-                updated_args.append(value)
+    index = 0
+    for name, value in iter_args(func, orig_args, orig_kwargs, signature=sig):
+        if name in updated_values:
+            # Since iter_args returns arguments ordered as they are in the function signature,
+            # we'll first see all the positional args.
+            if index < len(orig_args):
+                args[index] = updater(name, value)
+            # after we've exhausted the positional args, we'll start iterating through the
+            # keyword arguments.
             else:
-                # We have no updates for this argument, so just use original value
-                updated_args.append(orig_args[index])
-            args_count += 1
+                kwargs[name] = updater(name, value)
+                # we don't need to update our index anymore since we go through the positional
+                # arguments first.
+                continue
+        index += 1
 
-        # sanity check.  We should have checked all arguments without default values and the
-        # number of such arguments should equal the length of the original args
-        assert args_count == len(orig_args), ("Consistency error.  "
-                                              "Un-equal number of positional args.")
+    return args, kwargs
 
-    # Updating default-having args if necessary
-    kwarg_updates = {}
-    for k, v in updated_values.items():
-        if k in default_parameters:
-            if ValueUpdater.is_value_updater(v):
-                value_creator = v()
-                value: ValueUpdater = value_creator(orig_kwargs[k], signature, orig_args,
-                                                    orig_kwargs)
-            else:
-                value = v
-            kwarg_updates[k] = value
 
-    updated_kwargs = {**orig_kwargs, **kwarg_updates}
+if __name__ == '__main__':
+    def hi(arg1, arg2, arg3=3, arg4=4) -> None:
+        print(arg1, arg2, arg3, arg4)
 
-    return updated_args or orig_args, updated_kwargs
+
+    args = ('one', 'two')
+    a, k = update_parameter_value(hi, {'arg2': 2, 'arg4': 'nope'}, args)
+    print(a, k)
+    hi(*a, **k)
