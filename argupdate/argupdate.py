@@ -20,8 +20,13 @@ class ValueUpdater(abc.ABC):
     """
 
     @abc.abstractmethod
-    def __call__(self, original_value: Any, signature: inspect.Signature,
-                 orig_args: Sequence[Any], orig_kwargs: Mapping[str, Any]) -> Any:
+    def __call__(
+        self,
+        original_value: Any,
+        signature: inspect.Signature,
+        orig_args: Sequence[Any],
+        orig_kwargs: Mapping[str, Any],
+    ) -> Any:
         ...
 
     @staticmethod
@@ -32,19 +37,26 @@ class ValueUpdater(abc.ABC):
             return False
 
 
-ArgKwarg = Tuple[Sequence[Any], Mapping[str, Any]]
+Args = Sequence[Any]
+Kwargs = Mapping[str, Any]
+ArgKwarg = Tuple[Args, Kwargs]
 UpdateValue = Union[ValueUpdater, Any]
 
 AnyCallable = Callable[..., Any]
 
 
-def iter_args(func: AnyCallable,
-              args: Sequence[Any],
-              kwargs: Mapping[str, Any],
-              use_default_values_if_needed: Optional[bool] = True,
-              signature: Optional[inspect.Signature] = None
-              ) -> Iterable[Tuple[str, Any]]:
+def iter_args(
+    func: AnyCallable,
+    args: Sequence[Any],
+    kwargs: Mapping[str, Any],
+    use_default_values_if_needed: Optional[bool] = True,
+    signature: Optional[inspect.Signature] = None,
+) -> Iterable[Tuple[str, Any]]:
     sig = signature or inspect.signature(func)
+    # print(str(sig))
+    # print(args)
+    # print(kwargs)
+    # print(func.__name__)
     bound_args: inspect.BoundArguments = sig.bind(*args, **kwargs)
     if use_default_values_if_needed:
         bound_args.apply_defaults()
@@ -54,10 +66,12 @@ def iter_args(func: AnyCallable,
         yield name, value
 
 
-def update_parameter_value(func: Callable[..., Any],
-                           updated_values: Mapping[str, UpdateValue],
-                           orig_args: Sequence[Any] = None,
-                           orig_kwargs: Mapping[str, Any] = None) -> ArgKwarg:
+def update_parameter_value(
+    func: Callable[..., Any],
+    updated_values: Mapping[str, UpdateValue],
+    orig_args: Sequence[Any] = None,
+    orig_kwargs: Mapping[str, Any] = None,
+) -> ArgKwarg:
     """Updates the values in an arg list and kwarg dict to new values.
 
     :param func: The function that we're going to give the args and kwargs to once we update
@@ -110,12 +124,12 @@ def update_parameter_value(func: Callable[..., Any],
     return args, kwargs
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
     def hi(arg1, arg2, arg3=3, arg4=4) -> None:
         print(arg1, arg2, arg3, arg4)
 
-
-    args = ('one', 'two')
-    a, k = update_parameter_value(hi, {'arg2': 2, 'arg4': 'nope'}, args)
+    args = ("one", "two")
+    a, k = update_parameter_value(hi, {"arg2": 2, "arg4": "nope"}, args)
     print(a, k)
     hi(*a, **k)
