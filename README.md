@@ -19,33 +19,47 @@ update the value of an argument at runtime.
 ```python
 from typing import Optional
 
-def foo(arg_1: int, arg_2: bool, arg_3: Optional[str] = None) -> None:
-    print(arg_1, arg_2, arg_3)
+def foo(bar: int, baz: bool, arg_3: Optional[str] = None) -> None:
+    print(bar, baz, arg_3)
 ```
 
-Let's say for some reason we always want `arg_2` to be `False`, no
-matter what the caller passes in.
+Let's say for some reason we always want `baz` to be `False`, no matter
+what the caller passes in.
 
 ```python
 import functools
 from argupdate import update_parameter_value
 from typing import Optional
 
-def arg_2_always_false(func):
-    # This is the new value for `arg_2`
-    updated_values = {
-        'arg_2': False
-    }
+
+def baz_always_false(func):
+    """
+    A decorator that changes the value for "baz".
+    """
+    # This is the new value for `baz`
+    updated_values = {"baz": False}
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        # Here we update the value.
-        updated_args, updated_kwargs = update_parameter_value(func, updated_values, args, kwargs)
+        # This is the magic part
+        updated_args, updated_kwargs = update_parameter_value(
+            func, updated_values, args, kwargs
+        )
         return func(*updated_args, **updated_kwargs)
+
     return wrapper
 
-@arg_2_always_false
-def foo(arg_1: int, arg_2: bool, arg_3: Optional[str] = None) -> None:
-    print(arg_1, arg_2, arg_3)
+
+@baz_always_false
+def foo(bar: int, baz: bool, arg_3: Optional[str] = None) -> None:
+    print(bar, baz, arg_3)
+
+
+if __name__ == '__main__':
+    foo(1, True, 'hi')
+    
+    # Prints:
+    # 1 False hi
 ```
 
 Admittedly, this is a contrived example. You could've just set set the
