@@ -26,7 +26,7 @@ setup(
     name='argupdate',
     version='0.1.0',
     description='Dynamically update a functions arguments before passing them in.',
-    python_requires='==3.*,>=3.8.0',
+    python_requires='==3.*,>=3.5.0',
     author='Dustin Wyatt',
     author_email='dustin.wyatt@gmail.com',
     license='MIT',
