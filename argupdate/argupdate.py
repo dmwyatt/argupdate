@@ -74,15 +74,15 @@ def update_parameter_value(
 ) -> ArgKwarg:
     """Updates the values in an arg list and kwarg dict to new values.
 
-    :param func: The function that we're going to give the args and kwargs to once we update
-        them.
-    :param updated_values: A key-value mapping of parameter names to new values. If the new
-        value is an instance of :class:`ValueUpdater`, it gets called and its return value used as
-        the new value.
-    :param orig_args: The original arguments that we want to update.  It's ok to provide None if
-        you're only passing kwargs to `func`.
-    :param orig_kwargs: The original kwargs that we want to update. It's ok to provide None if
-        you're only passing args to `func`.
+    :param func: The function that we're going to give the args and
+        kwargs to once we update them.
+    :param updated_values: A key-value mapping of parameter names to
+        new values. If the new value is an instance of :class:`ValueUpdater`,
+        it gets called and its return value used as the new value.
+    :param orig_args: The original arguments that we want to update.  It's ok
+        to provide None if you're only passing kwargs to `func`.
+    :param orig_kwargs: The original kwargs that we want to update. It's ok to
+        provide None if you're only passing args to `func`.
     :return: Returns the updated args and kwargs.
     """
 
@@ -108,16 +108,16 @@ def update_parameter_value(
     index = 0
     for name, value in iter_args(func, orig_args, orig_kwargs, signature=sig):
         if name in updated_values:
-            # Since iter_args returns arguments ordered as they are in the function signature,
-            # we'll first see all the positional args.
+            # Since iter_args returns arguments ordered as they are in the
+            # function signature, we'll first see all the positional args.
             if index < len(orig_args):
                 args[index] = updater(name, value)
-            # after we've exhausted the positional args, we'll start iterating through the
-            # keyword arguments.
+            # after we've exhausted the positional args, we'll start iterating
+            # through the keyword arguments.
             else:
                 kwargs[name] = updater(name, value)
-                # we don't need to update our index anymore since we go through the positional
-                # arguments first.
+                # we don't need to update our index anymore since we go
+                # through the positional arguments first.
                 continue
         index += 1
 
